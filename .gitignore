@@ -3,3 +3,4 @@ venv/
 .DS_Store
 artifacts/
 data
+__pycache__/
