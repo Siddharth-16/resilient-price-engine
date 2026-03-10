@@ -7,7 +7,6 @@ PROCESSED_DATA_DIR = DATA_DIR / "processed"
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
 
 DATASET_PATH = RAW_DATA_DIR / "vehicles.csv"
-MODEL_PATH = ARTIFACTS_DIR / "baseline_model.joblib"
 
 TARGET_COLUMN = "price"
 TEST_SIZE = 0.2
