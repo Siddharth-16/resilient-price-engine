@@ -7,4 +7,3 @@ __pycache__/
 mlruns/
 mlflow.db
 .env
-images/
