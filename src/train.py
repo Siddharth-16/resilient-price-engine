@@ -48,6 +48,8 @@ def train() -> None:
         test_size=TEST_SIZE,
         random_state=RANDOM_STATE,
     )
+    X_train.to_csv(ARTIFACTS_DIR / "reference_data.csv", index=False)
+    X_test.to_csv("data/new_data.csv", index=False)
 
     print("Training model...")
     model = RandomForestRegressor(
