@@ -1,4 +1,4 @@
-# Resilient Price Engine
+# Resilient Price Engine — ML Monitoring & Drift Detection System
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-green)
