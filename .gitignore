@@ -4,7 +4,7 @@ venv/
 artifacts/
 data
 __pycache__/
-*.py[cod]
-*.pyo
 mlruns/
 mlflow.db
+.env
+images/
