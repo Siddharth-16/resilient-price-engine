@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import time
 from pathlib import Path
 
 import joblib
@@ -15,9 +14,14 @@ from src.config import PROCESSED_DATA_DIR, ARTIFACTS_DIR, TEST_SIZE, RANDOM_STAT
 from src.utils import ensure_dir
 
 DEFAULT_DATA_PATH = PROCESSED_DATA_DIR / "clean_vehicle_data.csv"
-MODEL_PATH = ARTIFACTS_DIR / "price_model.joblib"
+
+PROD_MODEL_PATH = ARTIFACTS_DIR / "price_model.joblib"
+CANDIDATE_MODEL_PATH = ARTIFACTS_DIR / "candidate_price_model.joblib"
+
+PROD_METRICS_PATH = ARTIFACTS_DIR / "metrics.json"
+CANDIDATE_METRICS_PATH = ARTIFACTS_DIR / "candidate_metrics.json"
+
 FEATURES_PATH = ARTIFACTS_DIR / "model_features.joblib"
-METRICS_PATH = ARTIFACTS_DIR / "metrics.json"
 REFERENCE_DATA_PATH = ARTIFACTS_DIR / "reference_data.csv"
 NEW_DATA_PATH = Path("data/new_data.csv")
 
@@ -34,43 +38,33 @@ def preprocess_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
 
     y = df["price"]
     X = df.drop(columns=["price"])
-
     X = pd.get_dummies(X, drop_first=True)
     return X, y
 
 
-def train(data_path: Path) -> None:
-    total_start = time.time()
-
+def train(data_path: Path, candidate: bool = False) -> None:
     print(f"Loading processed dataset from: {data_path}")
-    step_start = time.time()
     df = load_data(data_path)
-    print(f"Loaded dataset in {time.time() - step_start:.2f}s | shape={df.shape}")
 
     print("Preprocessing dataset...")
-    step_start = time.time()
     X, y = preprocess_data(df)
-    print(f"Preprocessed dataset in {time.time() - step_start:.2f}s | X shape={X.shape}")
 
     print("Splitting dataset...")
-    step_start = time.time()
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
         test_size=TEST_SIZE,
         random_state=RANDOM_STATE,
     )
-    print(
-        f"Split completed in {time.time() - step_start:.2f}s | "
-        f"train={X_train.shape}, test={X_test.shape}"
-    )
 
     ensure_dir(ARTIFACTS_DIR)
-    X_train.to_csv(REFERENCE_DATA_PATH, index=False)
-    X_test.to_csv(NEW_DATA_PATH, index=False)
+
+    # save reference/test splits only for production training
+    if not candidate:
+        X_train.to_csv(REFERENCE_DATA_PATH, index=False)
+        X_test.to_csv(NEW_DATA_PATH, index=False)
 
     print("Training model...")
-    step_start = time.time()
     model = RandomForestRegressor(
         n_estimators=50,
         random_state=RANDOM_STATE,
@@ -78,20 +72,23 @@ def train(data_path: Path) -> None:
         verbose=1,
     )
     model.fit(X_train, y_train)
-    print(f"Model training completed in {time.time() - step_start:.2f}s")
 
     print("Evaluating model...")
-    step_start = time.time()
     train_preds = model.predict(X_train)
     test_preds = model.predict(X_test)
 
     train_mae = mean_absolute_error(y_train, train_preds)
     test_mae = mean_absolute_error(y_test, test_preds)
-    print(f"Evaluation completed in {time.time() - step_start:.2f}s")
+
+    if candidate:
+        model_path = CANDIDATE_MODEL_PATH
+        metrics_path = CANDIDATE_METRICS_PATH
+    else:
+        model_path = PROD_MODEL_PATH
+        metrics_path = PROD_METRICS_PATH
 
     print("Saving artifacts...")
-    step_start = time.time()
-    joblib.dump(model, MODEL_PATH)
+    joblib.dump(model, model_path)
     joblib.dump(X.columns.tolist(), FEATURES_PATH)
 
     metrics = {
@@ -102,22 +99,21 @@ def train(data_path: Path) -> None:
         "test_rows": int(len(X_test)),
         "num_features": int(X.shape[1]),
         "training_data_path": str(data_path),
+        "candidate": candidate,
     }
-    METRICS_PATH.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
-    print(f"Artifacts saved in {time.time() - step_start:.2f}s")
+    metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
     print("Training complete.")
     print(f"Train MAE: {train_mae:.2f}")
     print(f"Test MAE: {test_mae:.2f}")
-    print(f"Saved model to: {MODEL_PATH}")
-    print(f"Saved features to: {FEATURES_PATH}")
-    print(f"Saved metrics to: {METRICS_PATH}")
-    print(f"Total pipeline time: {time.time() - total_start:.2f}s")
+    print(f"Saved model to: {model_path}")
+    print(f"Saved metrics to: {metrics_path}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-path", type=str, default=str(DEFAULT_DATA_PATH))
+    parser.add_argument("--candidate", action="store_true")
     args = parser.parse_args()
 
-    train(Path(args.data_path))
+    train(Path(args.data_path), candidate=args.candidate)
