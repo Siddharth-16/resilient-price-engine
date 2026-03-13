@@ -1,9 +1,6 @@
 from __future__ import annotations
-
 from typing import Optional
-
 from pydantic import BaseModel, Field
-
 
 class PricePredictionRequest(BaseModel):
     manufacturer: Optional[str] = Field(default="unknown")

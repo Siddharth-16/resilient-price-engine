@@ -8,23 +8,12 @@ from src.config import ARTIFACTS_DIR
 MODEL_PATH = ARTIFACTS_DIR / "price_model.joblib"
 FEATURES_PATH = ARTIFACTS_DIR / "model_features.joblib"
 
-MODEL = None
-FEATURE_COLUMNS = None
+def load_model() -> tuple[object, list[str]]:
+    model = joblib.load(MODEL_PATH)
+    feature_columns = joblib.load(FEATURES_PATH)
+    return model, feature_columns
 
-
-def load_artifacts() -> None:
-    global MODEL, FEATURE_COLUMNS
-
-    if MODEL is None:
-        MODEL = joblib.load(MODEL_PATH)
-
-    if FEATURE_COLUMNS is None:
-        FEATURE_COLUMNS = joblib.load(FEATURES_PATH)
-
-
-def prepare_input(raw_input: dict) -> pd.DataFrame:
-    load_artifacts()
-
+def prepare_input(raw_input: dict, feature_columns: list[str]) -> pd.DataFrame:
     df = pd.DataFrame([raw_input])
 
     if "year" in df.columns and "car_age" not in df.columns:
@@ -32,15 +21,14 @@ def prepare_input(raw_input: dict) -> pd.DataFrame:
         df = df.drop(columns=["year"])
 
     df = pd.get_dummies(df, drop_first=False)
-
-    df = df.reindex(columns=FEATURE_COLUMNS, fill_value=0)
+    df = df.reindex(columns=feature_columns, fill_value=0)
 
     return df
 
+def predict_price(raw_input: dict, model_bundle: tuple[object, list[str]]) -> float:
+    model, feature_columns = model_bundle
 
-def predict_price(raw_input: dict) -> float:
-    load_artifacts()
+    X = prepare_input(raw_input, feature_columns)
+    prediction = model.predict(X)[0]
 
-    X = prepare_input(raw_input)
-    prediction = MODEL.predict(X)[0]
     return float(prediction)
