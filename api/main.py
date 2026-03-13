@@ -6,6 +6,8 @@ from fastapi import FastAPI, HTTPException
 
 from api.schemas import PricePredictionRequest, PricePredictionResponse
 from src.predict import load_model, predict_price
+from pathlib import Path
+import json
 
 model_bundle = None
 
@@ -25,6 +27,23 @@ app = FastAPI(
 @app.get("/health")
 def health_check() -> dict:
     return {"status": "ok"}
+
+@app.get("/model-info")
+def model_info() -> dict:
+    metrics_path = Path("artifacts/metrics.json")
+
+    if not metrics_path.exists():
+        return {"status": "no model metadata found"}
+
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    return {
+        "model": metrics.get("model"),
+        "train_mae": metrics.get("train_mae"),
+        "test_mae": metrics.get("test_mae"),
+        "num_features": metrics.get("num_features"),
+        "training_data_path": metrics.get("training_data_path"),
+        "candidate": metrics.get("candidate"),
+    }
 
 @app.post("/predict", response_model=PricePredictionResponse)
 def predict(request: PricePredictionRequest) -> PricePredictionResponse:
