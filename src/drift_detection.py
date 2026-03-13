@@ -69,7 +69,6 @@ if __name__ == "__main__":
     reference = pd.read_csv(REFERENCE_DATA)
     new_data = pd.read_csv(NEW_DATA)
 
-    # simulate drift for demo
     new_data["odometer"] = new_data["odometer"] * 1.5
     new_data["car_age"] = new_data["car_age"] + 5
 
@@ -82,7 +81,6 @@ if __name__ == "__main__":
 
         original_data = pd.read_csv(ORIGINAL_DATA)
 
-        # simple demo retraining dataset
         retrain_data = pd.concat(
             [original_data, original_data.sample(frac=0.2, random_state=42)],
             ignore_index=True,
