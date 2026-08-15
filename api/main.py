@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 
@@ -21,6 +20,10 @@ class ModelStore:
         self.model_mtime_ns = MODEL_PATH.stat().st_mtime_ns
 
     def get(self):
+        if not MODEL_PATH.exists():
+            raise FileNotFoundError(
+                f"Production model not found at {MODEL_PATH}. Run `python -m src.train` first."
+            )
         current_mtime = MODEL_PATH.stat().st_mtime_ns
         if self.model is None or self.model_mtime_ns != current_mtime:
             self.reload()
@@ -32,7 +35,8 @@ model_store = ModelStore()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    model_store.reload()
+    if MODEL_PATH.exists():
+        model_store.reload()
     yield
 
 
