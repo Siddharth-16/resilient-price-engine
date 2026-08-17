@@ -13,8 +13,7 @@ RUN pip install --upgrade pip && \
 COPY api ./api
 COPY src ./src
 
-COPY artifacts/price_model.joblib ./artifacts/price_model.joblib
-COPY artifacts/metrics.json ./artifacts/metrics.json
+RUN mkdir -p /app/artifacts
 
 EXPOSE 8000
 
