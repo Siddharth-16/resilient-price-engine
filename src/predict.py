@@ -5,30 +5,71 @@ import pandas as pd
 
 from src.config import ARTIFACTS_DIR
 
-MODEL_PATH = ARTIFACTS_DIR / "price_model.joblib"
-FEATURES_PATH = ARTIFACTS_DIR / "model_features.joblib"
 
-def load_model() -> tuple[object, list[str]]:
-    model = joblib.load(MODEL_PATH)
-    feature_columns = joblib.load(FEATURES_PATH)
-    return model, feature_columns
+MODEL_PATH = (
+    ARTIFACTS_DIR
+    / "price_model.joblib"
+)
 
-def prepare_input(raw_input: dict, feature_columns: list[str]) -> pd.DataFrame:
-    df = pd.DataFrame([raw_input])
 
-    if "year" in df.columns and "car_age" not in df.columns:
-        df["car_age"] = 2024 - df["year"]
-        df = df.drop(columns=["year"])
+def load_model():
+    """
+    Load the current production sklearn Pipeline.
 
-    df = pd.get_dummies(df, drop_first=False)
-    df = df.reindex(columns=feature_columns, fill_value=0)
+    The saved artifact already contains:
+        preprocessing
+        OneHotEncoder
+        estimator
 
-    return df
+    Therefore no separate feature-columns artifact or manual
+    one-hot encoding is required.
+    """
 
-def predict_price(raw_input: dict, model_bundle: tuple[object, list[str]]) -> float:
-    model, feature_columns = model_bundle
+    if not MODEL_PATH.exists():
+        raise FileNotFoundError(
+            f"Production model not found at "
+            f"{MODEL_PATH}. "
+            "Run `python -m src.train` first."
+        )
 
-    X = prepare_input(raw_input, feature_columns)
-    prediction = model.predict(X)[0]
+    return joblib.load(
+        MODEL_PATH
+    )
 
-    return float(prediction)
+
+def prepare_input(
+    raw_input: dict,
+) -> pd.DataFrame:
+    """
+    Convert one raw API request into the DataFrame schema expected
+    by the sklearn Pipeline.
+
+    Encoding is handled inside the saved Pipeline.
+    """
+
+    return pd.DataFrame(
+        [raw_input]
+    )
+
+
+def predict_price(
+    raw_input: dict,
+    model,
+) -> float:
+    """
+    Predict the price of one vehicle using the production Pipeline.
+    """
+
+    X = prepare_input(
+        raw_input
+    )
+
+    prediction = (
+        model.predict(
+            X
+        )[0]
+    )
+
+    return float(
+        prediction
+    )
