@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
@@ -6,12 +6,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 COPY api ./api
 COPY src ./src
 
-RUN mkdir -p /app/artifacts
+COPY artifacts/price_model.joblib ./artifacts/price_model.joblib
+COPY artifacts/metrics.json ./artifacts/metrics.json
 
 EXPOSE 8000
 
