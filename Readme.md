@@ -1,6 +1,6 @@
 # Resilient Price Engine
 
-**Production-style ML system for used-car price prediction, distribution-shift detection, automated retraining, and safe model promotion.**
+**End-to-end data science and production ML system for used-car market analysis, price prediction, model diagnostics, distribution-shift detection, automated retraining, and safe model promotion.**
 
 ![Python](https://img.shields.io/badge/Python-3.14-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-green)
@@ -9,13 +9,18 @@
 ![Docker](https://img.shields.io/badge/Container-Docker-blue)
 ![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
-Resilient Price Engine is an end-to-end machine learning system that predicts used-car prices and simulates how a production model can respond to distribution shift.
+Resilient Price Engine is an end-to-end data science and machine learning system built on Craigslist used-vehicle listings.
+
+The project combines SQL and Tableau market analysis with predictive modeling and production-style ML infrastructure. It analyzes pricing relationships and vehicle-segment composition, benchmarks regression models, evaluates held-out prediction errors across market segments, and simulates how a deployed model can respond to distribution shift through automated retraining and gated model promotion.
 
 The project includes:
 
 - reproducible data preprocessing
+- SQL market analysis and segmentation
+- Tableau market visualization
 - model benchmarking across Random Forest, Extra Trees, and XGBoost
 - leakage-resistant group-aware evaluation
+- held-out model error and bias analysis
 - numeric and categorical drift detection
 - automated candidate retraining
 - holdout-gated model promotion
@@ -30,6 +35,23 @@ The project includes:
 ## Key Results
 
 Starting from **426,880 Craigslist vehicle listings**, the preprocessing pipeline retained **354,920 usable rows** after filtering invalid years, prices, mileage values, and duplicate listing IDs.
+
+### Market Analysis
+
+- Found a **58.7% lower median listing price** among 8–12-year-old vehicles with 150k+ miles versus vehicles below 30k miles, after controlling broadly for vehicle age.
+- Identified strong vehicle-composition effects in manufacturer pricing: Ford pickup listings had a **$28,990 median price** versus **$7,995 for sedans**, with similar patterns across Chevrolet, Toyota, and Nissan.
+- Replaced the original aggregate mileage-depreciation interpretation after segment analysis showed that vehicle type and manufacturer mix can materially confound raw pricing comparisons.
+
+### Model Diagnostics
+
+Held-out SQL diagnostics showed substantial variation in model performance across vehicle segments:
+
+- Trucks: approximately **$3,132 MAE**
+- Sedans: approximately **$1,410 MAE**
+- Trucks also showed approximately **+$777 average residual**, indicating systematic underprediction under the project's `actual - predicted` residual definition.
+- Older low-mileage vehicles produced larger dollar errors, but relative error did not consistently worsen, indicating that higher vehicle values, price dispersion, composition, and residual bias all contribute.
+
+### Drift Simulation
 
 The final drift simulation used progressively newer vehicle cohorts:
 
@@ -166,7 +188,77 @@ incoming_2016_2018        88,615
 incoming_2019_2022        41,199
 ```
 
+### Analysis vs Model-Ready Data
+
+The preprocessing pipeline produces separate views of the same cleaned vehicle population for analysis and modeling.
+
+`analysis_vehicle_data.csv` retains:
+
+- listing `id`
+- vehicle model `year`
+- cleaned model features
+- target price
+
+This dataset is used for MySQL analysis and Tableau visualization.
+
+The model-ready data excludes listing identifiers and passes derived `car_age` rather than `year` to the estimator, preventing arbitrary listing IDs from becoming predictive features while preserving model year for analytical use.
+
 ---
+
+## Market Analysis & Model Diagnostics
+
+The project uses MySQL for both exploratory market analysis and post-model diagnostic analysis.
+
+### Age and Mileage
+
+A simple aggregate mileage comparison initially suggested a steep depreciation relationship. To reduce confounding from vehicle age, listings were segmented jointly by age and mileage.
+
+Among vehicles aged 8–12 years:
+
+- median price below 30k miles: **$22,995**
+- median price above 150k miles: **$9,500**
+- difference: **58.7%**
+
+The relationship was not monotonic in every segment. Investigation of anomalous groups showed that higher-mileage cohorts could contain disproportionately large shares of trucks, pickups, and higher-priced manufacturers.
+
+### Vehicle Composition
+
+Manufacturer-level price comparisons were further segmented by vehicle type.
+
+Examples:
+
+| Manufacturer | Sedan Median | Pickup Median |
+| ------------ | -----------: | ------------: |
+| Ford         |       $7,995 |       $28,990 |
+| Chevrolet    |       $7,995 |       $28,999 |
+| Toyota       |       $9,200 |       $27,990 |
+| Nissan       |       $9,000 |       $24,990 |
+
+These results demonstrate why raw manufacturer averages should not be interpreted independently of vehicle mix.
+
+### Held-Out Model Diagnostics
+
+Predictions from the untouched evaluation dataset are exported for SQL analysis with:
+
+- predicted price
+- residual
+- absolute error
+- absolute percentage error
+- listing-to-model price gap
+
+Residual is defined as:
+
+````text
+residual = actual listing price - predicted price
+
+Therefore:
+
+- `positive residual` -> model underprediction
+- `negative residual` -> model overprediction
+
+Segment-level evaluation identified meaningful differences hidden by aggregate MAE. Trucks showed approximately **$3,132 MAE**, compared with approximately **$1,410 for sedans**, while several higher-value segments also showed positive residual bias.
+
+The detailed SQL analysis and Tableau dashboard are documented in [`sql_analysis/`](sql_analysis/).
 
 ## Model Features
 
@@ -174,7 +266,7 @@ The target variable is:
 
 ```text
 price
-```
+````
 
 Features:
 
@@ -562,7 +654,9 @@ resilient-price-engine/
 │
 ├── sql_analysis/
 |   ├── import_csv.py
+|   ├── export_predictions.py
 |   ├── queries.sql
+|   ├── Dashboard.png
 |   └── README.md
 |
 ├── Dockerfile
@@ -637,24 +731,30 @@ uvicorn api.main:app --reload
 
 ![Prediction Endpoint](images/predict_model.png)
 
+### Used Car Market Overview
+
+![Tableau Market Dashboard](sql_analysis/Dashboard.png)
+
 ---
 
 ## Tech Stack
 
-| Technology   | Purpose                            |
-| ------------ | ---------------------------------- |
-| Python       | Core application                   |
-| Pandas       | Data preprocessing                 |
-| Scikit-learn | ML pipelines and tree models       |
-| XGBoost      | Model benchmarking                 |
-| SciPy        | Statistical drift detection        |
-| FastAPI      | Model inference API                |
-| Pydantic     | API input validation               |
-| MLflow       | Experiment tracking                |
-| Joblib       | Model serialization                |
-| Pytest       | Automated tests                    |
-| Docker       | Reproducible inference environment |
-| Uvicorn      | ASGI server                        |
+| Technology   | Purpose                               |
+| ------------ | ------------------------------------- |
+| Python       | Core application                      |
+| Pandas       | Data preprocessing                    |
+| Scikit-learn | ML pipelines and tree models          |
+| XGBoost      | Model benchmarking                    |
+| SciPy        | Statistical drift detection           |
+| FastAPI      | Model inference API                   |
+| Pydantic     | API input validation                  |
+| MLflow       | Experiment tracking                   |
+| Joblib       | Model serialization                   |
+| Pytest       | Automated tests                       |
+| Docker       | Reproducible inference environment    |
+| Uvicorn      | ASGI server                           |
+| MySQL        | Market analysis and model diagnostics |
+| Tableau      | Interactive market visualization      |
 
 ---
 
@@ -664,6 +764,8 @@ uvicorn api.main:app --reload
 - The project uses batch-based drift evaluation rather than a live streaming source.
 - Retraining is performed locally rather than through a managed cloud model registry.
 - Vehicle price estimates depend on the feature quality and coverage of the Craigslist dataset.
+- Craigslist prices represent advertised listing prices rather than confirmed transaction prices.
+- Model-diagnostic analysis uses the held-out baseline cohort, so age-based diagnostic findings primarily describe older vehicle populations rather than the full 2000–2022 dataset.
 
 ---
 
