@@ -110,6 +110,11 @@ def preprocess(
     df["car_age"] = MAX_YEAR - df["year"]
 
     years = df["year"].copy().reset_index(drop=True)
+    ids = (
+        df["id"].copy().reset_index(drop=True)
+        if "id" in df.columns
+        else pd.Series(range(len(df)), name="id")
+    )
     clean_df = df[MODEL_COLUMNS].reset_index(drop=True)
 
     stats["final_rows"] = int(len(clean_df))
@@ -119,12 +124,13 @@ def preprocess(
         else 0.0
     )
 
-    return clean_df, years, stats
+    return clean_df, years, ids, stats
 
 
 def save_outputs(
     clean_df: pd.DataFrame,
     years: pd.Series,
+    ids: pd.Series,
     stats: dict[str, int | float],
     output_dir: Path,
 ) -> None:
@@ -132,6 +138,30 @@ def save_outputs(
 
     clean_path = output_dir / "clean_vehicle_data.csv"
     clean_df.to_csv(clean_path, index=False)
+
+    analysis_df = clean_df.copy()
+
+    analysis_df.insert(
+        0,
+        "year",
+        years.to_numpy(),
+    )
+
+    analysis_df.insert(
+        0,
+        "id",
+        ids.to_numpy(),
+    )
+
+    analysis_path = (
+        output_dir
+        / "analysis_vehicle_data.csv"
+    )
+
+    analysis_df.to_csv(
+        analysis_path,
+        index=False,
+    )
 
     cohort_counts: dict[str, int] = {}
     for name, (start_year, end_year) in COHORTS.items():
@@ -193,8 +223,8 @@ def main() -> None:
         )
 
     raw_df = pd.read_csv(args.input)
-    clean_df, years, stats = preprocess(raw_df)
-    save_outputs(clean_df, years, stats, args.output_dir)
+    clean_df, years, ids, stats = preprocess(raw_df)
+    save_outputs(clean_df, years, ids, stats, args.output_dir)
 
 
 if __name__ == "__main__":
