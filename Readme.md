@@ -286,7 +286,7 @@ Features:
 
 Categorical features are handled by `OneHotEncoder(handle_unknown="ignore")` inside the saved Scikit-learn pipeline.
 
----
+**Vehicle age representation**: The public inference API accepts vehicle model year. Internally, the model derives car_age = 2022 - year, where 2022 is the reference year of the source dataset. The system is scoped to Craigslist-style advertised listing-price estimation for vehicle model years 2000–2022 and should not be interpreted as a current-market pricing model for post-2022 vehicles.
 
 ## Model Selection
 
@@ -537,7 +537,7 @@ Example request:
   "paint_color": "white",
   "state": "ny",
   "odometer": 90000,
-  "car_age": 8
+  "year": 2014
 }
 ```
 
