@@ -186,8 +186,26 @@ def test_prediction_accepts_raw_features() -> None:
         df["price"],
     )
 
+    raw_input = (
+        X.iloc[0]
+        .to_dict()
+    )
+
+    car_age = raw_input.pop(
+        "car_age"
+    )
+
+    raw_input["year"] = int(
+        2022 - car_age
+    )
+
+    # Also verify inference normalization.
+    raw_input[
+        "manufacturer"
+    ] = " Ford "
+
     prediction = predict_price(
-        X.iloc[0].to_dict(),
+        raw_input,
         model,
     )
 
@@ -199,26 +217,135 @@ def test_prediction_accepts_raw_features() -> None:
     assert prediction > 0
 
 
-def test_prepare_input_preserves_raw_schema() -> None:
-    row = {
+def valid_prediction_request() -> dict:
+    return {
         "manufacturer": "ford",
+        "model": "f-150",
+        "fuel": "gas",
+        "title_status": "clean",
+        "transmission": "automatic",
+        "drive": "4wd",
+        "type": "truck",
+        "paint_color": "white",
+        "state": "ny",
+        "odometer": 90000,
+        "year": 2018,
+    }
+
+
+def test_prediction_request_rejects_post_2022_vehicle() -> None:
+    payload = valid_prediction_request()
+
+    payload["year"] = 2023
+
+    with pytest.raises(
+        ValidationError
+    ):
+        PricePredictionRequest(
+            **payload
+        )
+
+
+def test_prediction_request_rejects_pre_2000_vehicle() -> None:
+    payload = valid_prediction_request()
+
+    payload["year"] = 1999
+
+    with pytest.raises(
+        ValidationError
+    ):
+        PricePredictionRequest(
+            **payload
+        )
+
+
+def test_prediction_request_rejects_odometer_above_training_domain() -> None:
+    payload = valid_prediction_request()
+
+    payload[
+        "odometer"
+    ] = 300_001
+
+    with pytest.raises(
+        ValidationError
+    ):
+        PricePredictionRequest(
+            **payload
+        )
+
+
+def test_inference_normalization_matches_training_format() -> None:
+    raw = {
+        "manufacturer": " FORD ",
+        "model": " F-150 ",
+        "fuel": " GAS ",
+        "title_status": " CLEAN ",
+        "transmission": " AUTOMATIC ",
+        "drive": " 4WD ",
+        "type": " TRUCK ",
+        "paint_color": " WHITE ",
+        "state": " NY ",
+        "odometer": 90000,
+        "year": 2014,
+    }
+
+    prepared = prepare_input(
+        raw
+    )
+
+    assert (
+        prepared.loc[
+            0,
+            "manufacturer",
+        ]
+        == "ford"
+    )
+
+    assert (
+        prepared.loc[
+            0,
+            "state",
+        ]
+        == "ny"
+    )
+
+    assert (
+        prepared.loc[
+            0,
+            "car_age",
+        ]
+        == 8
+    )
+
+
+def test_prepare_input_derives_age_and_normalizes_categories() -> None:
+    row = {
+        "manufacturer": " Ford ",
+        "model": " F-150 ",
         "odometer": 1000,
-        "car_age": 2,
+        "year": 2020,
     }
 
     prepared = prepare_input(
         row
     )
 
-    assert prepared.columns.tolist() == [
-        "manufacturer",
-        "odometer",
-        "car_age",
-    ]
+    assert "year" not in prepared.columns
 
-    assert len(
-        prepared
-    ) == 1
+    assert prepared.loc[
+        0,
+        "car_age",
+    ] == 2
+
+    assert prepared.loc[
+        0,
+        "manufacturer",
+    ] == "ford"
+
+    assert prepared.loc[
+        0,
+        "model",
+    ] == "f-150"
 
 # Regression metrics
 
