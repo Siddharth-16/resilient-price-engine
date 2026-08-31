@@ -11,6 +11,11 @@ from src.utils import ensure_dir
 
 MIN_YEAR = 2000
 MAX_YEAR = 2022
+
+# The source dataset represents Craigslist listings through 2022.
+# `car_age` is therefore defined relative to 2022, not the current year.
+AGE_REFERENCE_YEAR = 2022
+
 MIN_PRICE = 500
 MAX_PRICE = 100_000
 MAX_ODOMETER = 300_000
@@ -26,6 +31,32 @@ CATEGORICAL_COLUMNS = [
     "paint_color",
     "state",
 ]
+
+def normalize_categorical_columns(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Apply the same categorical normalization used during training.
+
+    This function is also reused at inference time to avoid
+    training-serving skew.
+    """
+    normalized = df.copy()
+
+    for column in CATEGORICAL_COLUMNS:
+        if column not in normalized.columns:
+            continue
+
+        normalized[column] = (
+            normalized[column]
+            .fillna("unknown")
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .replace("", "unknown")
+        )
+
+    return normalized
 
 MODEL_COLUMNS = [
     *CATEGORICAL_COLUMNS,
@@ -44,13 +75,22 @@ COHORTS = {
 }
 
 
-def _record(stats: dict[str, int | float], label: str, df: pd.DataFrame) -> None:
+def _record(
+    stats: dict[str, int | float | str],
+    label: str,
+    df: pd.DataFrame,
+) -> None:
     stats[label] = int(len(df))
 
 
 def preprocess(
     raw_df: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.Series, dict[str, int | float]]:
+) -> tuple[
+    pd.DataFrame,
+    pd.Series,
+    pd.Series,
+    dict[str, int | float | str],
+]:
     """Clean raw Craigslist vehicle listings and return model-ready rows.
 
     Vehicle model year is returned separately so the cleaned dataset can be
@@ -62,7 +102,7 @@ def preprocess(
     if missing:
         raise ValueError(f"Raw dataset is missing required columns: {missing}")
 
-    stats: dict[str, int | float] = {}
+    stats: dict[str, int | float | str] = {}
     df = raw_df.copy()
     _record(stats, "raw_rows", df)
 
@@ -93,21 +133,12 @@ def preprocess(
     df = df[df["odometer"].between(0, MAX_ODOMETER)]
     _record(stats, "after_odometer_filter", df)
 
-    # Normalize categoricals rather than dropping otherwise usable listings.
-    for column in CATEGORICAL_COLUMNS:
-        df[column] = (
-            df[column]
-            .fillna("unknown")
-            .astype(str)
-            .str.strip()
-            .str.lower()
-            .replace("", "unknown")
-        )
+    df = normalize_categorical_columns(df)
 
     df["year"] = df["year"].astype(int)
     df["price"] = df["price"].astype(float)
     df["odometer"] = df["odometer"].astype(float)
-    df["car_age"] = MAX_YEAR - df["year"]
+    df["car_age"] = AGE_REFERENCE_YEAR - df["year"]
 
     years = df["year"].copy().reset_index(drop=True)
     ids = (
