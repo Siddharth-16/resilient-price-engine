@@ -4,6 +4,10 @@ import joblib
 import pandas as pd
 
 from src.config import ARTIFACTS_DIR
+from src.preprocess import (
+    AGE_REFERENCE_YEAR,
+    normalize_categorical_columns,
+)
 
 
 MODEL_PATH = (
@@ -41,15 +45,42 @@ def prepare_input(
     raw_input: dict,
 ) -> pd.DataFrame:
     """
-    Convert one raw API request into the DataFrame schema expected
-    by the sklearn Pipeline.
+    Convert an API request into the feature schema expected by the
+    trained sklearn Pipeline.
 
-    Encoding is handled inside the saved Pipeline.
+    Public API:
+        year
+
+    Internal model representation:
+        car_age = 2022 - year
+
+    Categorical normalization is shared with training to prevent
+    training-serving skew.
     """
+    input_data = raw_input.copy()
 
-    return pd.DataFrame(
-        [raw_input]
+    if "year" not in input_data:
+        raise ValueError(
+            "Prediction input must contain vehicle model year."
+        )
+
+    year = float(
+        input_data.pop("year")
     )
+
+    input_data["car_age"] = (
+        AGE_REFERENCE_YEAR - year
+    )
+
+    prepared = pd.DataFrame(
+        [input_data]
+    )
+
+    prepared = normalize_categorical_columns(
+        prepared
+    )
+
+    return prepared
 
 
 def predict_price(
