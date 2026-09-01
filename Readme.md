@@ -649,9 +649,6 @@ resilient-price-engine/
 │   ├── reference_data.csv
 │   └── training_data.csv
 │
-├── notebooks/
-│   └── eda.ipynb
-│
 ├── sql_analysis/
 |   ├── import_csv.py
 |   ├── export_predictions.py
